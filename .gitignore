@@ -1,0 +1,19 @@
+# Maven build output
+target/
+
+# NexusDB runtime files — never commit these
+data/
+*.ndb
+*.idx
+*.wal
+*.catalog
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
