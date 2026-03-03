@@ -260,13 +260,58 @@ public class Parser {
         return new Statement() { public Type getType() { return Type.SHOW_TABLES; } };
     }
 
-    // ── WHERE ─────────────────────────────────────────────────────
+    // ── WHERE (with subquery support) ─────────────────────────────
 
     private WhereClause parseWhere() {
         consume(WHERE);
+
+        // EXISTS (SELECT ...)
+        if (peek().type() == EXISTS) {
+            consume(EXISTS); consume(LPAREN);
+            SelectStatement sub = parseSelect();
+            consume(RPAREN);
+            return new WhereClause(new SubqueryExpression(
+                SubqueryExpression.Type.EXISTS, null, null, sub));
+        }
+
         String colRef = parseColRef();
         String col = colRef.contains(".") ? colRef.split("\\.")[1] : colRef;
-        return new WhereClause(col, consumeOperator(), consumeLiteral());
+
+        // col IN (SELECT ...)
+        if (peek().type() == IN) {
+            consume(IN); consume(LPAREN);
+            SelectStatement sub = parseSelect();
+            consume(RPAREN);
+            return new WhereClause(new SubqueryExpression(
+                SubqueryExpression.Type.IN, col, null, sub));
+        }
+
+        // col NOT IN (SELECT ...)
+        if (peek().type() == NOT) {
+            consume(NOT); consume(IN); consume(LPAREN);
+            SelectStatement sub = parseSelect();
+            consume(RPAREN);
+            return new WhereClause(new SubqueryExpression(
+                SubqueryExpression.Type.NOT_IN, col, null, sub));
+        }
+
+        String op = consumeOperator();
+
+        // col OP (SELECT ...) — scalar subquery
+        if (peek().type() == LPAREN) {
+            int savedPos = pos;
+            try {
+                consume(LPAREN);
+                SelectStatement sub = parseSelect();
+                consume(RPAREN);
+                return new WhereClause(new SubqueryExpression(
+                    SubqueryExpression.Type.SCALAR, col, op, sub));
+            } catch (Exception e) {
+                pos = savedPos; // backtrack — not a subquery
+            }
+        }
+
+        return new WhereClause(col, op, consumeLiteral());
     }
 
     private String consumeOperator() {

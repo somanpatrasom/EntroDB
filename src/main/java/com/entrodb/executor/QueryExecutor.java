@@ -8,6 +8,9 @@ import com.entrodb.storage.*;
 import com.entrodb.transaction.*;
 import com.entrodb.util.ByteUtils;
 import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
+import com.entrodb.sql.ast.SubqueryExpression;
 import java.util.*;
 
 public class QueryExecutor {
@@ -156,7 +159,8 @@ public class QueryExecutor {
         try {
             txnManager.lockTableRead(txn, tableId);
             ResultSet result;
-            if (stmt.where != null && stmt.where.operator.equals("=")
+            if (stmt.where != null && !stmt.where.hasSubquery()
+                    && stmt.where.operator.equals("=")
                     && indexManager.hasIndex(schema.getTableName(),
                                               stmt.where.column)) {
                 result = indexedSelect(schema, tableId, stmt, resultCols, selectAll);
@@ -375,6 +379,7 @@ public class QueryExecutor {
                     List<Object> leftRow =
                         ByteUtils.deserializeRow(leftRec, leftSchema);
                     if (stmt.where != null
+                            && !stmt.where.hasSubquery()
                             && leftSchema.hasColumn(stmt.where.column)
                             && !matchesWhere(leftRow, stmt.where, leftSchema))
                         continue;
@@ -397,6 +402,7 @@ public class QueryExecutor {
                     } else {
                         for (List<Object> rightRow : matchingRight) {
                             if (stmt.where != null
+                                    && !stmt.where.hasSubquery()
                                     && rightSchema.hasColumn(stmt.where.column)
                                     && !matchesWhere(rightRow, stmt.where, rightSchema))
                                 continue;
@@ -625,7 +631,11 @@ public class QueryExecutor {
     }
 
     private boolean matchesWhere(List<Object> row, WhereClause where,
-                                  TableSchema schema) {
+                                  TableSchema schema) throws IOException {
+        // Subquery WHERE
+        if (where.hasSubquery()) {
+            return matchesSubquery(row, where.subquery, schema);
+        }
         int    idx = schema.getColumnIndex(where.column);
         Object val = row.get(idx);
         if (val == null) return false;
@@ -640,9 +650,84 @@ public class QueryExecutor {
         };
     }
 
+    private boolean matchesSubquery(List<Object> row,
+                                     SubqueryExpression sub,
+                                     TableSchema schema)
+            throws IOException {
+        switch (sub.type) {
+
+            case IN, NOT_IN -> {
+                // Execute subquery to get a set of values
+                SelectStatement subStmt = sub.subquery;
+                Set<Object> values = executeSubqueryAsSet(subStmt);
+                int colIdx = schema.getColumnIndex(sub.column);
+                Object val = row.get(colIdx);
+                boolean inSet = values.contains(val);
+                return sub.type == SubqueryExpression.Type.IN ? inSet : !inSet;
+            }
+
+            case EXISTS -> {
+                // EXISTS — true if subquery returns any rows
+                SelectStatement subStmt = sub.subquery;
+                ResultSet result = executeSelectInternal(subStmt);
+                return !result.getRows().isEmpty();
+            }
+
+            case SCALAR -> {
+                // col OP (SELECT single value)
+                SelectStatement subStmt = sub.subquery;
+                ResultSet result = executeSelectInternal(subStmt);
+                if (result.getRows().isEmpty()) return false;
+                Object scalarVal = result.getRows().get(0).get(0);
+                if (scalarVal == null) return false;
+                int colIdx = schema.getColumnIndex(sub.column);
+                Object val = row.get(colIdx);
+                if (val == null) return false;
+                int c = compareObjects(val, scalarVal);
+                return switch (sub.operator) {
+                    case "="  -> c == 0;  case "!=" -> c != 0;
+                    case "<"  -> c < 0;   case ">"  -> c > 0;
+                    case "<=" -> c <= 0;  case ">=" -> c >= 0;
+                    default   -> false;
+                };
+            }
+
+            default -> { return false; }
+        }
+    }
+
+    private Set<Object> executeSubqueryAsSet(SelectStatement stmt)
+            throws IOException {
+        ResultSet result = executeSelectInternal(stmt);
+        Set<Object> values = new HashSet<>();
+        for (List<Object> r : result.getRows())
+            if (!r.isEmpty() && r.get(0) != null)
+                values.add(r.get(0));
+        return values;
+    }
+
+    private ResultSet executeSelectInternal(SelectStatement stmt)
+            throws IOException {
+        try {
+            return executeSelect(stmt);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Subquery interrupted");
+        }
+    }
+
     @SuppressWarnings("unchecked")
     private int compareObjects(Object a, Object b) {
-        if (a instanceof Comparable ca) return ca.compareTo(b);
+        // Handle mixed numeric types (e.g. Integer vs Double from scalar subquery)
+        if (a instanceof Number na && b instanceof Number nb) {
+            return Double.compare(na.doubleValue(), nb.doubleValue());
+        }
+        if (a instanceof Comparable ca) {
+            try { return ca.compareTo(b); }
+            catch (ClassCastException e) {
+                return a.toString().compareTo(b.toString());
+            }
+        }
         return a.toString().compareTo(b.toString());
     }
 

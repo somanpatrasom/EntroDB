@@ -11,6 +11,7 @@ public record Token(TokenType type, String value) {
         JOIN, INNER, LEFT, OUTER,
         COUNT, SUM, AVG, MIN, MAX,
         GROUP, BY, HAVING, AS,
+        IN, EXISTS, NOTTOKEN,
 
         STAR, COMMA, LPAREN, RPAREN, SEMICOLON, DOT,
         EQ, NEQ, LT, GT, LTE, GTE,

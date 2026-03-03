@@ -31,6 +31,7 @@ public class Lexer {
         Map.entry("min",     MIN),     Map.entry("max",     MAX),
         Map.entry("group",   GROUP),   Map.entry("by",      BY),
         Map.entry("having",  HAVING),  Map.entry("as",      AS),
+        Map.entry("in",      IN),      Map.entry("exists",  EXISTS),
         Map.entry("true",  BOOL_LITERAL),
         Map.entry("false", BOOL_LITERAL)
     );
