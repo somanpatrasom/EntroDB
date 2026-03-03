@@ -1,4 +1,4 @@
-package com.nexusdb;
+package com.entrodb;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 

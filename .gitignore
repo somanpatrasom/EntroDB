@@ -10,3 +10,5 @@ data/
 *.swp
 .DS_Store
 Thumbs.db
+data/
+target/

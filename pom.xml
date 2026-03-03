@@ -5,8 +5,8 @@
          http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>com.nexusdb</groupId>
-  <artifactId>NexusDB</artifactId>
+  <groupId>com.entrodb</groupId>
+  <artifactId>EntroDB</artifactId>
   <version>1.0.0</version>
   <packaging>jar</packaging>
 
@@ -47,7 +47,7 @@
               <transformers>
                 <transformer implementation=
                   "org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                  <mainClass>com.nexusdb.NexusDB</mainClass>
+                  <mainClass>com.entrodb.EntroDB</mainClass>
                 </transformer>
               </transformers>
             </configuration>
