@@ -18,7 +18,7 @@ STATUS_AUTH_OK   = 0x04
 STATUS_AUTH_FAIL = 0x05
 
 
-class NexusClient:
+class EntroClient:
 
     def __init__(self, host="localhost", port=6969,
                  username="admin", password="entrodb"):
@@ -97,7 +97,7 @@ def main():
     username = sys.argv[3] if len(sys.argv) > 3 else "admin"
     password = sys.argv[4] if len(sys.argv) > 4 else "entrodb"
 
-    client = NexusClient(host, port, username, password)
+    client = EntroClient(host, port, username, password)
     client.connect()
     print("EntroDB Python Client | type \\q to quit\n")
 
